@@ -33,6 +33,8 @@
     <link rel="preload" as="style" href="assets/build/assets/themesv2-DZZF_N8v.css" />
     <link rel="stylesheet" href="assets/build/assets/bootstrap-vCaDZZbr.css" />
     <link rel="stylesheet" href="assets/build/assets/themesv2-DZZF_N8v.css" />
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
     <style>
         @import url('https:/fonts.googleapis.com/css2?family=Work+Sans:ital,wght@0,100..900;1,100..900&display=swap');
         @import url('fonts/brigestafonts.css');
@@ -1452,68 +1454,87 @@
 
     </script>
     <script>
-    // Fungsi untuk mengambil dan menampilkan data RSVP dari server
+    // --- 1. Konfigurasi Firebase ---
+    // GANTI DENGAN KONFIGURASI DARI PROYEK FIREBASE ANDA
+    const firebaseConfig = {
+      apiKey: "AIzaSyBottjsmkycO31Ab4osZOO5VbYkEdqJ0vc",
+      authDomain: "wedding-397d6.firebaseapp.com",
+      projectId: "wedding-397d6",
+      storageBucket: "wedding-397d6.firebasestorage.app",
+      messagingSenderId: "1027841022841",
+      appId: "1:1027841022841:web:fa8a8ee256fe617277eda8",
+      measurementId: "G-677PLFR65Y"
+    };
+
+    // Inisialisasi Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const rsvpCollection = db.collection("rsvp");
+
+    // Fungsi untuk mengambil dan menampilkan data RSVP dari Firestore
     async function showRSVP() {
         try {
-            const response = await fetch('/api/get-rsvp');
-            const rsvpData = await response.json();
+            // Mengambil data dan mengurutkannya berdasarkan nama
+            const snapshot = await rsvpCollection.orderBy("name").get();
             const container = document.getElementById('rsvp-display');
             container.innerHTML = ""; // Kosongkan kontainer sebelum menampilkan data baru
 
-            // Tampilkan setiap entri RSVP
-            rsvpData.forEach((item, index) => {
+            let index = 0;
+            snapshot.forEach(doc => {
+                const item = doc.data();
+                index++;
                 const card = document.createElement('div');
                 card.className = "card mb-2 p-3 border rounded";
-                // Atur style agar sesuai dengan tema
-                card.style.backgroundColor = '#fdf8f0';
-                card.style.borderColor = 'var(--inv-border)';
+                card.style.backgroundColor = '#fdf8f0'; // Sesuai tema
+                card.style.borderColor = 'var(--inv-border)'; // Sesuai tema
 
+                // Templat HTML untuk setiap kartu ucapan
                 card.innerHTML = `
-                    <strong>${index + 1}. ${item.name}</strong><br>
+                    <strong>${index}. ${item.name}</strong><br>
                     <small>Relasi: ${item.relation || '-'}</small><br>
                     <small>Kehadiran: ${item.hadir}</small><br>
                     <small>Jumlah Hadir: ${item.jumlah}</small><br>
-                    <p class="mt-2 mb-0">"${item.ucapan ? item.ucapan : '-'}"</p>
+                    <p class="mt-2 mb-0">"${item.ucapan || '-'}"</p>
                 `;
                 container.appendChild(card);
             });
         } catch (error) {
             console.error('Gagal mengambil data RSVP:', error);
+            alert('Gagal memuat data ucapan. Silakan coba lagi.');
         }
     }
 
     // Event listener untuk form submission
-    document.getElementById('form-rsvp').addEventListener('submit', async function (e) {
+    document.getElementById('form-rsvp').addEventListener('submit', async function(e) {
         e.preventDefault();
 
         const formData = {
             name: document.getElementById('name').value,
             relation: document.getElementById('relation').value,
             hadir: document.querySelector('input[name="hadir"]:checked').value,
-            jumlah: document.getElementById('jumlah').value,
-            ucapan: document.getElementById('ucapan').value
+            jumlah: parseInt(document.getElementById('jumlah').value, 10), // Pastikan ini angka
+            ucapan: document.getElementById('ucapan').value,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp() // Menambahkan waktu submit
         };
 
+        const submitButton = document.getElementById('btn-rsvp');
+        submitButton.disabled = true;
+        submitButton.innerText = 'Mengirim...';
+
         try {
-            const response = await fetch('/api/simpan-rsvp', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData),
-            });
+            await rsvpCollection.add(formData);
 
-            const result = await response.json();
+            // Menggunakan vuejs-noty untuk notifikasi
+            Vue.prototype.$noty.success('Konfirmasi Anda berhasil dikirim!');
 
-            if (response.ok) {
-                alert(result.message);
-                document.getElementById('form-rsvp').reset();
-                document.getElementById('hadir_ya').checked = true;
-                showRSVP(); // Perbarui daftar RSVP setelah berhasil mengirim
-            } else {
-                alert('Gagal mengirim konfirmasi: ' + result.message);
-            }
+            document.getElementById('form-rsvp').reset();
+            showRSVP(); // Perbarui daftar RSVP setelah berhasil mengirim
         } catch (error) {
-            console.error('Error:', error);
-            alert('Terjadi kesalahan. Pastikan server Node.js sudah berjalan.');
+            console.error('Error menyimpan ke Firestore:', error);
+            Vue.prototype.$noty.error('Gagal menyimpan konfirmasi. Silakan coba lagi.');
+        } finally {
+            submitButton.disabled = false;
+            submitButton.innerText = 'Kirim Konfirmasi';
         }
     });
 
