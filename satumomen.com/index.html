@@ -34,7 +34,7 @@
     <link rel="stylesheet" href="assets/build/assets/bootstrap-vCaDZZbr.css" />
     <link rel="stylesheet" href="assets/build/assets/themesv2-DZZF_N8v.css" />
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
     <style>
         @import url('https:/fonts.googleapis.com/css2?family=Work+Sans:ital,wght@0,100..900;1,100..900&display=swap');
         @import url('fonts/brigestafonts.css');
@@ -1455,12 +1455,14 @@
     </script>
     <script>
     // --- 1. Konfigurasi Firebase ---
-    // GANTI DENGAN KONFIGURASI DARI PROYEK FIREBASE ANDA
+    // Gunakan konfigurasi dari proyek Firebase Anda
     const firebaseConfig = {
       apiKey: "AIzaSyBottjsmkycO31Ab4osZOO5VbYkEdqJ0vc",
       authDomain: "wedding-397d6.firebaseapp.com",
+      // Tambahkan databaseURL dari pengaturan proyek Firebase Anda
+      databaseURL: "https://wedding-397d6-default-rtdb.asia-southeast1.firebasedatabase.app",
       projectId: "wedding-397d6",
-      storageBucket: "wedding-397d6.firebasestorage.app",
+      storageBucket: "wedding-397d6.appspot.com",
       messagingSenderId: "1027841022841",
       appId: "1:1027841022841:web:fa8a8ee256fe617277eda8",
       measurementId: "G-677PLFR65Y"
@@ -1468,29 +1470,33 @@
 
     // Inisialisasi Firebase
     firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
-    const rsvpCollection = db.collection("rsvp");
+    const db = firebase.database();
+    const rsvpRef = db.ref("rsvp");
 
-    // Fungsi untuk mengambil dan menampilkan data RSVP dari Firestore
-    async function showRSVP() {
-        try {
-            // Mengambil data dan mengurutkannya berdasarkan nama
-            const snapshot = await rsvpCollection.orderBy("name").get();
+    // Fungsi untuk menampilkan data RSVP secara real-time
+    function showRSVP() {
+        rsvpRef.orderByChild("timestamp").on('value', (snapshot) => {
             const container = document.getElementById('rsvp-display');
-            container.innerHTML = ""; // Kosongkan kontainer sebelum menampilkan data baru
+            container.innerHTML = ""; // Kosongkan kontainer
 
-            let index = 0;
-            snapshot.forEach(doc => {
-                const item = doc.data();
-                index++;
+            const rsvpData = [];
+            // Data dari RTDB adalah objek, kita ubah menjadi array
+            snapshot.forEach(childSnapshot => {
+                rsvpData.push(childSnapshot.val());
+            });
+
+            // Balik urutan array agar data terbaru di atas
+            rsvpData.reverse();
+
+            // Tampilkan setiap entri RSVP
+            rsvpData.forEach((item, index) => {
                 const card = document.createElement('div');
                 card.className = "card mb-2 p-3 border rounded";
-                card.style.backgroundColor = '#fdf8f0'; // Sesuai tema
-                card.style.borderColor = 'var(--inv-border)'; // Sesuai tema
+                card.style.backgroundColor = '#fdf8f0';
+                card.style.borderColor = 'var(--inv-border)';
 
-                // Templat HTML untuk setiap kartu ucapan
                 card.innerHTML = `
-                    <strong>${index}. ${item.name}</strong><br>
+                    <strong>${index + 1}. ${item.name}</strong><br>
                     <small>Relasi: ${item.relation || '-'}</small><br>
                     <small>Kehadiran: ${item.hadir}</small><br>
                     <small>Jumlah Hadir: ${item.jumlah}</small><br>
@@ -1498,10 +1504,10 @@
                 `;
                 container.appendChild(card);
             });
-        } catch (error) {
+        }, (error) => {
             console.error('Gagal mengambil data RSVP:', error);
             alert('Gagal memuat data ucapan. Silakan coba lagi.');
-        }
+        });
     }
 
     // Event listener untuk form submission
@@ -1512,9 +1518,9 @@
             name: document.getElementById('name').value,
             relation: document.getElementById('relation').value,
             hadir: document.querySelector('input[name="hadir"]:checked').value,
-            jumlah: parseInt(document.getElementById('jumlah').value, 10), // Pastikan ini angka
+            jumlah: parseInt(document.getElementById('jumlah').value, 10),
             ucapan: document.getElementById('ucapan').value,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp() // Menambahkan waktu submit
+            timestamp: firebase.database.ServerValue.TIMESTAMP // Timestamp untuk RTDB
         };
 
         const submitButton = document.getElementById('btn-rsvp');
@@ -1522,15 +1528,12 @@
         submitButton.innerText = 'Mengirim...';
 
         try {
-            await rsvpCollection.add(formData);
-
-            // Menggunakan vuejs-noty untuk notifikasi
+            await rsvpRef.push(formData);
             Vue.prototype.$noty.success('Konfirmasi Anda berhasil dikirim!');
-
             document.getElementById('form-rsvp').reset();
-            showRSVP(); // Perbarui daftar RSVP setelah berhasil mengirim
+            // Tidak perlu memanggil showRSVP() lagi, karena `on('value')` akan otomatis berjalan
         } catch (error) {
-            console.error('Error menyimpan ke Firestore:', error);
+            console.error('Error menyimpan ke Realtime Database:', error);
             Vue.prototype.$noty.error('Gagal menyimpan konfirmasi. Silakan coba lagi.');
         } finally {
             submitButton.disabled = false;
