@@ -1455,7 +1455,7 @@
     // Fungsi untuk mengambil dan menampilkan data RSVP dari server
     async function showRSVP() {
         try {
-            const response = await fetch('http://localhost:3000/get-rsvp');
+            const response = await fetch('/api/get-rsvp');
             const rsvpData = await response.json();
             const container = document.getElementById('rsvp-display');
             container.innerHTML = ""; // Kosongkan kontainer sebelum menampilkan data baru
@@ -1495,7 +1495,7 @@
         };
 
         try {
-            const response = await fetch('http://localhost:3000/simpan-rsvp', {
+            const response = await fetch('/api/simpan-rsvp', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData),
